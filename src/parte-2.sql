@@ -62,17 +62,19 @@ CREATE OR REPLACE TRIGGER biu_customer BEFORE INSERT OR UPDATE OF supportrepid O
         employee_title employee.title%TYPE;
     BEGIN
 
-        SELECT e.title
-        INTO employee_title
-        FROM employee e
-        WHERE e.employeeid = :NEW.supportrepid;
+        IF :NEW.supportrepid IS NOT NULL THEN
 
-        IF employee_title != 'Sales Support Agent' THEN
-            RAISE_APPLICATION_ERROR(-20102, 'ERRO! Somente um funcionário do cargo "Sales Support Agent" pode ' ||
-                                            'assumir a função de suporte para um cliente');
+            SELECT e.title
+            INTO employee_title
+            FROM employee e
+            WHERE e.employeeid = :NEW.supportrepid;
+
+            IF employee_title != 'Sales Support Agent' THEN
+                RAISE_APPLICATION_ERROR(-20102, 'ERRO! Somente um funcionário do cargo "Sales Support Agent" pode ' ||
+                                                'assumir a função de suporte para um cliente');
+            END IF;
+
         END IF;
-
-        DBMS_OUTPUT.PUT_LINE('Operação realizada com sucesso!');
 
     END;
 
@@ -83,7 +85,7 @@ UPDATE customer
 SET supportrepid = 1 -- id do General Manager
 WHERE customerid = 1;
 
--- coloca outro funcionário do suporte para o cliente 1
+-- coloca outro funcionário do suporte para o cliente 1 (deve FUNCIONAR)
 UPDATE customer
 SET supportrepid = 4 -- id de um Sales Support Agent
 WHERE customerid = 1;
