@@ -9,12 +9,12 @@ ALTER TABLE employee ADD salary NUMBER(7, 2);
 
 ALTER TABLE employee ADD CONSTRAINT chk_salary CHECK ( salary > 0 );
 
-CREATE OR REPLACE TRIGGER bi_employee BEFORE INSERT OR UPDATE OF salary ON employee
+CREATE OR REPLACE TRIGGER biu_employee BEFORE INSERT OR UPDATE OF salary ON employee
     FOR EACH ROW
     DECLARE
         salario_superior employee.salary%TYPE;
 
-        PRAGMA AUTONOMOUS_TRANSACTION;
+        PRAGMA AUTONOMOUS_TRANSACTION; -- gambiarra, mudar depois para procedure ou implementar compound trigger
     BEGIN
         IF :NEW.reportsto IS NOT NULL THEN
 
@@ -50,3 +50,40 @@ WHERE employeeid = 2;
 UPDATE employee
 SET salary = 10000.00
 WHERE employeeid = 2;
+
+
+
+-- RS2 - Um cliente (customer) só pode ter um funcionário associado à ele (supportRepId)
+-- que tenha o title de “Sales Support Agent”.
+
+CREATE OR REPLACE TRIGGER biu_customer BEFORE INSERT OR UPDATE OF supportrepid ON customer
+    FOR EACH ROW
+    DECLARE
+        employee_title employee.title%TYPE;
+    BEGIN
+
+        SELECT e.title
+        INTO employee_title
+        FROM employee e
+        WHERE e.employeeid = :NEW.supportrepid;
+
+        IF employee_title != 'Sales Support Agent' THEN
+            RAISE_APPLICATION_ERROR(-20102, 'ERRO! Somente um funcionário do cargo "Sales Support Agent" pode ' ||
+                                            'assumir a função de suporte para um cliente');
+        END IF;
+
+        DBMS_OUTPUT.PUT_LINE('Operação realizada com sucesso!');
+
+    END;
+
+-- *************** TESTES *************** --
+
+-- tenta atualizar o cliente 1 colocando o General Manager como suporte (deve FALHAR)
+UPDATE customer
+SET supportrepid = 1 -- id do General Manager
+WHERE customerid = 1;
+
+-- coloca outro funcionário do suporte para o cliente 1
+UPDATE customer
+SET supportrepid = 4 -- id de um Sales Support Agent
+WHERE customerid = 1;
