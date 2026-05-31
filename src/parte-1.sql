@@ -59,18 +59,26 @@ WHERE c1.CONSTRAINT_TYPE = 'R';
 -- colunas (nome, tipo e obrigatoriedade) e chaves primárias e estrangeiras.
 
 
-CREATE OR REPLACE PROCEDURE gerar_ddl IS
+CREATE OR REPLACE PROCEDURE gerar_ddl(esquema VARCHAR2) IS
     linha VARCHAR2(32767);
+    primeira_linha BOOLEAN;
 BEGIN
-    FOR tabela IN (SELECT TABLE_NAME FROM USER_TABLES)
+    FOR tabela IN (SELECT TABLE_NAME FROM ALL_TABLES WHERE OWNER = esquema)
     LOOP
         DBMS_OUTPUT.PUT_LINE('CREATE TABLE ' || tabela.TABLE_NAME || ' (');
+        primeira_linha := TRUE;
 
         FOR coluna IN (SELECT COLUMN_NAME, DATA_TYPE, NULLABLE,
                               DATA_LENGTH, DATA_PRECISION, DATA_SCALE
-                       FROM USER_TAB_COLUMNS
-                       WHERE tabela.TABLE_NAME = TABLE_NAME)
+                       FROM ALL_TAB_COLUMNS
+                       WHERE tabela.TABLE_NAME = TABLE_NAME AND
+                             OWNER = esquema)
         LOOP
+
+            IF NOT primeira_linha THEN
+                DBMS_OUTPUT.PUT_LINE(',');
+            END IF;
+            primeira_linha := FALSE;
 
             linha := '  ' || coluna.COLUMN_NAME || ' ' || coluna.DATA_TYPE;
 
@@ -87,15 +95,53 @@ BEGIN
             END IF;
 
             IF coluna.NULLABLE = 'N' THEN
-                linha := linha || ' NOT NULL,';
-            ELSE
-                linha := linha || ',';
+                linha := linha || ' NOT NULL';
             END IF;
 
-            DBMS_OUTPUT.PUT_LINE(linha);
+            DBMS_OUTPUT.PUT(linha);
 
         END LOOP;
 
+        FOR reg_constraint IN (SELECT
+                                   c.CONSTRAINT_NAME,
+                                   c.CONSTRAINT_TYPE,
+                                   LISTAGG(cc.COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY cc.POSITION) AS COLUNAS,
+
+                                   (SELECT r.TABLE_NAME FROM ALL_CONSTRAINTS r
+                                    WHERE r.CONSTRAINT_NAME = c.R_CONSTRAINT_NAME
+                                        AND r.OWNER = c.R_OWNER) AS TABELA_PAI,
+
+                                   (SELECT LISTAGG(rc.COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY rc.POSITION)
+                                    FROM ALL_CONS_COLUMNS rc
+                                    WHERE rc.CONSTRAINT_NAME = c.R_CONSTRAINT_NAME
+                                      AND rc.OWNER = c.R_OWNER) AS COLUNAS_PAI
+
+                               FROM ALL_CONSTRAINTS c
+                                    JOIN ALL_CONS_COLUMNS cc ON c.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+                                    AND c.OWNER = cc.OWNER
+                               WHERE c.TABLE_NAME = tabela.TABLE_NAME AND
+                                     c.CONSTRAINT_TYPE IN ('P', 'R') AND
+                                     c.OWNER = esquema
+                               GROUP BY c.CONSTRAINT_NAME, c.CONSTRAINT_TYPE, c.R_CONSTRAINT_NAME, c.R_OWNER)
+            LOOP
+                DBMS_OUTPUT.PUT_LINE(',');
+
+                IF reg_constraint.CONSTRAINT_TYPE = 'P' THEN
+                    linha := '  CONSTRAINT ' || reg_constraint.CONSTRAINT_NAME ||
+                             ' PRIMARY KEY (' || reg_constraint.COLUNAS || ')';
+                    DBMS_OUTPUT.PUT(linha);
+
+                ELSIF reg_constraint.CONSTRAINT_TYPE = 'R' THEN
+
+                    linha := '  CONSTRAINT ' || reg_constraint.CONSTRAINT_NAME ||
+                             ' FOREIGN KEY (' || reg_constraint.COLUNAS || ')' ||
+                             ' REFERENCES ' || reg_constraint.TABELA_PAI || '(' ||
+                             reg_constraint.COLUNAS_PAI || ')';
+                    DBMS_OUTPUT.PUT(linha);
+                END IF;
+            END LOOP;
+
+        DBMS_OUTPUT.NEW_LINE();
         DBMS_OUTPUT.PUT_LINE(');');
         DBMS_OUTPUT.PUT_LINE('/');
         DBMS_OUTPUT.NEW_LINE();
@@ -103,5 +149,5 @@ BEGIN
 END;
 
 BEGIN
-    gerar_ddl();
+    gerar_ddl('TRABALHO_BD2');
 END;
