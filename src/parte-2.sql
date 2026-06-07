@@ -9,29 +9,91 @@ ALTER TABLE employee ADD salary NUMBER(7, 2);
 
 ALTER TABLE employee ADD CONSTRAINT chk_salary CHECK ( salary > 0 );
 
-CREATE OR REPLACE TRIGGER biu_employee BEFORE INSERT OR UPDATE OF salary ON employee
-    FOR EACH ROW
-    DECLARE
-        salario_superior employee.salary%TYPE;
+CREATE OR REPLACE PROCEDURE insere_funcionario(
+    p_employeeId NUMBER,
+    p_lastName VARCHAR2,
+    p_firstName VARCHAR2,
+    p_title VARCHAR2 DEFAULT NULL,
+    p_reportsTo NUMBER DEFAULT NULL,
+    p_birthDate DATE DEFAULT NULL,
+    p_hireDate DATE DEFAULT NULL,
+    p_address VARCHAR2 DEFAULT NULL,
+    p_city VARCHAR2 DEFAULT NULL,
+    p_state VARCHAR2 DEFAULT NULL,
+    p_country VARCHAR2 DEFAULT NULL,
+    p_postalCode VARCHAR2 DEFAULT NULL,
+    p_phone VARCHAR2 DEFAULT NULL,
+    p_fax VARCHAR2 DEFAULT NULL,
+    p_email VARCHAR2 DEFAULT NULL,
+    p_salary NUMBER DEFAULT NULL
+) IS
+    salario_supervisor employee.salary%TYPE;
+BEGIN
+    IF p_reportsto IS NOT NULL THEN
+        SELECT e.salary
+        INTO salario_supervisor
+        FROM employee e
+        WHERE e.employeeid = p_reportsTo;
 
-        PRAGMA AUTONOMOUS_TRANSACTION; -- gambiarra, mudar depois para procedure ou implementar compound trigger
-    BEGIN
-        IF :NEW.reportsto IS NOT NULL THEN
-
-            SELECT salary
-            INTO salario_superior
-            FROM employee
-            WHERE employeeid = :NEW.reportsto;
-
-            IF :NEW.salary > salario_superior THEN
-                RAISE_APPLICATION_ERROR(-20101, 'ERRO! Você não pode cadastrar um salário de um funcionário ' ||
-                                                'com um valor maior do que o do seu supervisor');
-            END IF;
-
+        IF p_salary > NVL(salario_supervisor, 0) THEN
+            RAISE_APPLICATION_ERROR(-20101, 'ERRO! Você não pode cadastrar um funcionário com um ' ||
+                                            'salário maior do que o do seu supervisor');
         END IF;
+    END IF;
 
-        DBMS_OUTPUT.PUT_LINE('Operação realizada com sucesso!');
-    END;
+    INSERT INTO employee (employeeid, lastname, firstname, title, reportsto, birthdate, hiredate,
+                          address, city, state, country, postalcode, phone, fax, email, salary)
+        VALUES (p_employeeid, p_lastname, p_firstname, p_title, p_reportsto, p_birthdate, p_hiredate,
+                p_address, p_city, p_state, p_country, p_postalcode, p_phone, p_fax, p_email, p_salary);
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20102, 'ERRO! Supervisor informado não encontrado.');
+END;
+
+
+CREATE OR REPLACE PROCEDURE altera_salario_funcionario(
+    p_employeeId NUMBER,
+    p_salary NUMBER DEFAULT NULL
+) IS
+    id_supervisor employee.employeeid%TYPE;
+    salario_supervisor employee.salary%TYPE;
+    maior_salario_supervisionado employee.salary%TYPE;
+BEGIN
+    SELECT e.reportsto
+    INTO id_supervisor
+    FROM employee e
+    WHERE e.employeeid = p_employeeid;
+
+    IF id_supervisor IS NOT NULL THEN
+        SELECT e.salary
+        INTO salario_supervisor
+        FROM employee e
+        WHERE e.employeeid = id_supervisor;
+
+        IF p_salary > NVL(salario_supervisor, 0) THEN
+            RAISE_APPLICATION_ERROR(-20102, 'ERRO! Você não pode atualizar um funcionário com um ' ||
+                                            'salário maior do que o do seu supervisor');
+        END IF;
+    END IF;
+
+    SELECT MAX(salary)
+    INTO maior_salario_supervisionado
+    FROM employee
+    WHERE reportsto = p_employeeid;
+
+    IF maior_salario_supervisionado IS NOT NULL AND p_salary < maior_salario_supervisionado THEN
+            RAISE_APPLICATION_ERROR(-20103, 'ERRO! Você não pode atualizar um funcionário com um ' ||
+                                            'salário menor do que o do(s) seu(s) supervisonado(s)');
+    END IF;
+
+    UPDATE employee
+    SET salary = p_salary
+    WHERE employeeid = p_employeeid;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20104, 'ERRO! Funcionário não encontrado.');
+END;
 
 
 -- *************** TESTES *************** --
