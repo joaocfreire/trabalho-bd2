@@ -169,12 +169,19 @@ CREATE OR REPLACE TRIGGER bi_invoice_zero BEFORE INSERT ON invoice
     END;
 
 
--- TODO: a trigger deve bloquear apenas a atualização manual do total, mas permitir a atualização pela aiud_invoiceline
+-- package que guarda a flag se a alteração foi do sistema ou de um usuário
+CREATE OR REPLACE PACKAGE pkg_invoice_state AS
+    g_is_system_update BOOLEAN := FALSE;
+END pkg_invoice_state;
+
+
 CREATE OR REPLACE TRIGGER bu_invoice BEFORE UPDATE of total ON INVOICE
     FOR EACH ROW
     BEGIN
-        IF :NEW.total != :OLD.total THEN
-            RAISE_APPLICATION_ERROR(-20103, 'ERRO! Impossível alterar o total manualmente');
+        IF NOT pkg_invoice_state.g_is_system_update THEN
+            IF :NEW.total != :OLD.total THEN
+                RAISE_APPLICATION_ERROR(-20103, 'ERRO! Impossível alterar o total manualmente');
+            END IF;
         END IF;
     END;
 
@@ -183,6 +190,8 @@ CREATE OR REPLACE TRIGGER bu_invoice BEFORE UPDATE of total ON INVOICE
 CREATE OR REPLACE TRIGGER aiud_invoiceline AFTER INSERT OR UPDATE OF quantity, unitprice OR DELETE ON invoiceline
     FOR EACH ROW
     BEGIN
+        pkg_invoice_state.g_is_system_update := TRUE;
+
         IF :OLD.invoicelineid IS NULL THEN -- INSERT
             UPDATE invoice
             SET total = total + (:NEW.unitprice * :NEW.quantity)
@@ -198,6 +207,13 @@ CREATE OR REPLACE TRIGGER aiud_invoiceline AFTER INSERT OR UPDATE OF quantity, u
             SET total = total - (:OLD.unitprice * :OLD.quantity) + (:NEW.unitprice * :NEW.quantity)
             WHERE invoiceid = :NEW.invoiceid;
         END IF;
+
+        pkg_invoice_state.g_is_system_update := FALSE;
+
+    EXCEPTION
+        WHEN OTHERS THEN
+            pkg_invoice_state.g_is_system_update := FALSE;
+            RAISE;
     END;
 
 -- *************** TESTES *************** --
