@@ -95,6 +95,13 @@ EXCEPTION
         RAISE_APPLICATION_ERROR(-20104, 'ERRO! Funcionário não encontrado.');
 END;
 
+-- no user dono do schema
+CREATE USER user_aux IDENTIFIED BY user_aux;
+GRANT CREATE SESSION TO user_aux;
+
+GRANT SELECT ON employee TO user_aux;
+GRANT EXECUTE ON insere_funcionario TO user_aux;
+GRANT EXECUTE ON altera_salario_funcionario TO user_aux;
 
 -- *************** TESTES *************** --
 
