@@ -178,6 +178,29 @@ END;
 /
 
 
+-- RS4: Uma mesma playlist não pode conter mais do que 500 faixas de música
+
+CREATE OR REPLACE PROCEDURE insere_playlist_track(
+    p_playlistid playlisttrack.playlistid%type,
+    p_trackid playlisttrack.trackid%type)
+IS
+    qtd_musicas INTEGER;
+BEGIN
+    SELECT COUNT(*)
+    INTO qtd_musicas
+    FROM playlisttrack pt
+    WHERE pt.playlistid = p_playlistid;
+
+    IF qtd_musicas >= 500 THEN
+        RAISE_APPLICATION_ERROR(-20106, 'ERRO! Impossível colocar mais de 500 músicas em uma mesma playlist');
+    END IF;
+
+    INSERT INTO playlisttrack (playlistid, trackid)
+    VALUES (p_playlistid, p_trackid);
+END;
+/
+
+
 -- 4 - A base original do Chinook possui uma coluna Total na tabela Invoice representada
 -- de forma redundante com as informações contidas nas colunas UnitPrice e
 -- Quantity na tabela InvoiceLine. Podemos identificar nesse caso uma regra

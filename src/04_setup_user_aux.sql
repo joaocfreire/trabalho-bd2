@@ -8,8 +8,14 @@ CREATE USER user_aux IDENTIFIED BY user_aux;
 
 GRANT CREATE SESSION TO user_aux;
 
+-- Permissões para a RS1
 GRANT SELECT ON employee TO user_aux;
 
 GRANT EXECUTE ON insere_funcionario TO user_aux;
 
 GRANT EXECUTE ON altera_salario_funcionario TO user_aux;
+
+-- Permissões para a RS4
+GRANT INSERT, UPDATE, DELETE ON playlist TO user_aux;
+
+GRANT EXECUTE ON insere_playlist_track TO user_aux;

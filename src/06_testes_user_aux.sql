@@ -42,3 +42,22 @@ BEGIN
     );
 END;
 /
+
+
+-- Regra Semântica 4
+
+INSERT INTO chinook.playlist (playlistid, name)
+VALUES (20, 'Playlist 20');
+
+-- Insere 500 músicas na playlist 20 (deve FUNCIONAR)
+BEGIN
+    FOR i IN 1..500 LOOP
+        chinook.insere_playlist_track(20, i);
+    END LOOP;
+END;
+
+-- Tenta inserir a 501° música (deve FALHAR)
+BEGIN
+    chinook.insere_playlist_track(20, 501);
+END;
+
