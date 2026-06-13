@@ -1,4 +1,5 @@
--- ************************ TRABALHO BD2 - PARTE 1 ************************ --
+-- Esse script deve ser executado pelo usuário Chinook;
+-- Solução das questões da parte 1 do trabalho
 
 
 -- 1. Consultar as tabelas de catálogo para listar todos os índices existentes
@@ -6,7 +7,7 @@
 
 SELECT i.INDEX_NAME, i.TABLE_NAME, ic.COLUMN_NAME
 FROM USER_INDEXES i
-         JOIN USER_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME;
+    JOIN USER_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME;
 
 
 -- 2. Criar usando a linguagem de programação do SGBD escolhido um procedimento
@@ -17,7 +18,7 @@ CREATE OR REPLACE PROCEDURE REMOVE_INDICES(tabela VARCHAR2)
 BEGIN
     FOR cons IN (SELECT CONSTRAINT_NAME
                  FROM USER_CONSTRAINTS
-                 WHERE TABLE_NAME = tabela
+                 WHERE TABLE_NAME = UPPER(tabela)
                    AND CONSTRAINT_TYPE IN ('P', 'U'))
         LOOP
             EXECUTE IMMEDIATE 'ALTER TABLE ' || tabela || ' DROP CONSTRAINT ' || cons.CONSTRAINT_NAME || ' CASCADE';
@@ -30,11 +31,7 @@ BEGIN
             DBMS_OUTPUT.PUT_LINE('Indíce deletado: ' || idx.INDEX_NAME);
         END LOOP;
 END;
-
-BEGIN
-    REMOVE_INDICES('TRACK');
-END;
-
+/
 
 -- 3. Consultar as tabelas de catálogo para listar todas as chaves estrangeiras existentes
 -- informando as tabelas e colunas envolvidas.
@@ -72,7 +69,7 @@ BEGIN
                               DATA_LENGTH, DATA_PRECISION, DATA_SCALE
                        FROM ALL_TAB_COLUMNS
                        WHERE tabela.TABLE_NAME = TABLE_NAME AND
-                             OWNER = esquema)
+                             OWNER = UPPER(esquema))
         LOOP
 
             IF NOT primeira_linha THEN
@@ -146,10 +143,6 @@ BEGIN
         DBMS_OUTPUT.PUT_LINE('/');
         DBMS_OUTPUT.NEW_LINE();
     END LOOP;
-END;
-
-BEGIN
-    gerar_ddl('TRABALHO_BD2');
 END;
 /
 
@@ -364,7 +357,6 @@ INSERT INTO dte_transicao (maquina_id, estado_origem, estado_destino) VALUES ('I
 INSERT INTO dte_transicao (maquina_id, estado_origem, estado_destino) VALUES ('INVOICE_STATUS', 'PAGA',    'ENVIADA');
 INSERT INTO dte_transicao (maquina_id, estado_origem, estado_destino) VALUES ('INVOICE_STATUS', 'PAGA',    'CANCELADA');
 INSERT INTO dte_transicao (maquina_id, estado_origem, estado_destino) VALUES ('INVOICE_STATUS', 'ENVIADA', 'ENTREGUE');
-COMMIT;
 
 ALTER TABLE invoice ADD status VARCHAR2(30) DEFAULT 'ABERTA';
 
@@ -372,45 +364,3 @@ BEGIN
     dte_gerar_trigger('INVOICE_STATUS');
 END;
 /
-
-
--- *************** TESTES *************** --
-
--- 1) INSERT usando o DEFAULT 'ABERTA' (estado inicial) -- (deve FUNCIONAR)
-INSERT INTO invoice (invoiceid, customerid, invoicedate, total)
-VALUES (9001, 1, TO_DATE('2026-06-07', 'YYYY-MM-DD'), 0);
-
--- 2) INSERT começando direto em 'PAGA', que não é estado inicial -- (deve FALHAR: ORA-20201)
-INSERT INTO invoice (invoiceid, customerid, invoicedate, total, status)
-VALUES (9002, 1, TO_DATE('2026-06-07', 'YYYY-MM-DD'), 0, 'PAGA');
-
--- 3) INSERT com um valor que não existe no DTE -- (deve FALHAR: ORA-20200)
-INSERT INTO invoice (invoiceid, customerid, invoicedate, total, status)
-VALUES (9003, 1, TO_DATE('2026-06-07', 'YYYY-MM-DD'), 0, 'XPTO');
-
--- 4) Transição ABERTA -> PAGA na fatura 9001 -- (deve FUNCIONAR)
-UPDATE invoice SET status = 'PAGA' WHERE invoiceid = 9001;
-
--- 5) Transição PAGA -> ENVIADA -- (deve FUNCIONAR)
-UPDATE invoice SET status = 'ENVIADA' WHERE invoiceid = 9001;
-
--- 6) Transição ENVIADA -> ABERTA (não declarada no DTE) -- (deve FALHAR: ORA-20202)
-UPDATE invoice SET status = 'ABERTA' WHERE invoiceid = 9001;
-
--- 7) Transição ENVIADA -> ENTREGUE -- (deve FUNCIONAR)
-UPDATE invoice SET status = 'ENTREGUE' WHERE invoiceid = 9001;
-
--- 8) ENTREGUE é estado final: qualquer saída é inválida -- (deve FALHAR: ORA-20202)
-UPDATE invoice SET status = 'PAGA' WHERE invoiceid = 9001;
-
--- 9) Estado nulo nunca é permitido -- (deve FALHAR: ORA-20203)
-UPDATE invoice SET status = NULL WHERE invoiceid = 9001;
-
--- 10) Nova fatura ABERTA e transição direta para CANCELADA -- (deve FUNCIONAR)
-INSERT INTO invoice (invoiceid, customerid, invoicedate, total)
-VALUES (9004, 1, TO_DATE('2026-06-07', 'YYYY-MM-DD'), 0);
-UPDATE invoice SET status = 'CANCELADA' WHERE invoiceid = 9004;
-
--- Conferência final: 9001 deve estar 'ENTREGUE' e 9004 'CANCELADA'.
-SELECT invoiceid, status FROM invoice WHERE invoiceid IN (9001, 9004) ORDER BY invoiceid;
-

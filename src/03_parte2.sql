@@ -1,7 +1,9 @@
--- ************************ TRABALHO BD2 - PARTE 2 ************************ --
+-- Esse script deve ser executado pelo usuário Chinook;
+-- Solução das questões da parte 2 do trabalho
 
 
 -- RS1: Um funcionário (employee) não pode ganhar um salário maior que o do seu supervisor.
+
 -- OBS: como o CHINOOK não contém a coluna salary em employee,
 -- foram feitas modificações no esquema para comportar a regra.
 
@@ -49,6 +51,7 @@ EXCEPTION
     WHEN NO_DATA_FOUND THEN
         RAISE_APPLICATION_ERROR(-20102, 'ERRO! Supervisor informado não encontrado.');
 END;
+/
 
 
 CREATE OR REPLACE PROCEDURE altera_salario_funcionario(
@@ -94,32 +97,7 @@ EXCEPTION
     WHEN NO_DATA_FOUND THEN
         RAISE_APPLICATION_ERROR(-20104, 'ERRO! Funcionário não encontrado.');
 END;
-
--- no user dono do schema
-CREATE USER user_aux IDENTIFIED BY user_aux;
-GRANT CREATE SESSION TO user_aux;
-
-GRANT SELECT ON employee TO user_aux;
-GRANT EXECUTE ON insere_funcionario TO user_aux;
-GRANT EXECUTE ON altera_salario_funcionario TO user_aux;
-
--- *************** TESTES *************** --
-
--- atualiza o salário do General Manager (topo da hierarquia)
-UPDATE employee
-SET salary = 15000.00
-WHERE employeeid = 1;
-
--- tenta atualizar o salário do Sales Manager, cujo chefe é o General Manager com um salário maior (deve FALHAR)
-UPDATE employee
-SET salary = 16000.00
-WHERE employeeid = 2;
-
--- atualiza o salário do Sales Manager, cujo chefe é o General Manager com um salário menor (deve FUNCIONAR)
-UPDATE employee
-SET salary = 10000.00
-WHERE employeeid = 2;
-
+/
 
 
 -- RS2 - Um cliente (customer) só pode ter um funcionário associado à ele (supportRepId)
@@ -146,18 +124,7 @@ CREATE OR REPLACE TRIGGER biu_customer BEFORE INSERT OR UPDATE OF supportrepid O
         END IF;
 
     END;
-
--- *************** TESTES *************** --
-
--- tenta atualizar o cliente 1 colocando o General Manager como suporte (deve FALHAR)
-UPDATE customer
-SET supportrepid = 1 -- id do General Manager
-WHERE customerid = 1;
-
--- coloca outro funcionário do suporte para o cliente 1 (deve FUNCIONAR)
-UPDATE customer
-SET supportrepid = 4 -- id de um Sales Support Agent
-WHERE customerid = 1;
+/
 
 
 -- 4 - A base original do Chinook possui uma coluna Total na tabela Invoice representada
@@ -168,18 +135,20 @@ WHERE customerid = 1;
 -- Implementar uma solução que garanta a integridade dessa regra.
 
 
--- como a invoice deve ser criada antes das invoicelines, precisamos garantir que o total inicial é 0
+-- Como a invoice deve ser criada antes das invoicelines, precisamos garantir que o total inicial é 0
 CREATE OR REPLACE TRIGGER bi_invoice_zero BEFORE INSERT ON invoice
     FOR EACH ROW
     BEGIN
         :NEW.total := 0;
     END;
+/
 
 
--- package que guarda a flag se a alteração foi do sistema ou de um usuário
+-- Package que guarda a flag se a alteração foi do sistema ou de um usuário
 CREATE OR REPLACE PACKAGE pkg_invoice_state AS
     g_is_system_update BOOLEAN := FALSE;
 END pkg_invoice_state;
+/
 
 
 CREATE OR REPLACE TRIGGER bu_invoice BEFORE UPDATE of total ON INVOICE
@@ -191,9 +160,10 @@ CREATE OR REPLACE TRIGGER bu_invoice BEFORE UPDATE of total ON INVOICE
             END IF;
         END IF;
     END;
+/
 
 
--- atualiza a consistencia do total em invoice
+-- Atualiza a consistencia do total em invoice
 CREATE OR REPLACE TRIGGER aiud_invoiceline AFTER INSERT OR UPDATE OF quantity, unitprice OR DELETE ON invoiceline
     FOR EACH ROW
     BEGIN
@@ -222,20 +192,4 @@ CREATE OR REPLACE TRIGGER aiud_invoiceline AFTER INSERT OR UPDATE OF quantity, u
             pkg_invoice_state.g_is_system_update := FALSE;
             RAISE;
     END;
-
--- *************** TESTES *************** --
-
--- tenta atualizar invoice com um valor de total diferente da soma dos unitprices (1.98) - (deve FALHAR)
-UPDATE invoice
-SET total = 2.0
-WHERE invoiceid = 1;
-
-INSERT INTO invoice (invoiceid, customerid, invoicedate, total)
-    VALUES (413, 1, '31-05-2026', 0);
-
-INSERT INTO invoiceline (invoicelineid, invoiceid, trackid, unitprice, quantity)
-VALUES (2241, 413, 1, 1, 10);
-
-UPDATE invoice
-SET total = 20
-WHERE invoiceid = 413;
+/
