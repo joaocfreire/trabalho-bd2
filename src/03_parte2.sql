@@ -127,6 +127,57 @@ CREATE OR REPLACE TRIGGER biu_customer BEFORE INSERT OR UPDATE OF supportrepid O
 /
 
 
+-- RS3: Um cliente (customer) não pode comprar a mesma faixa de música (pois track é uma mídia digital) mais de uma vez.
+
+CREATE OR REPLACE TRIGGER bi_invoiceline FOR INSERT ON invoiceline
+COMPOUND TRIGGER
+
+    TYPE t_linha_rec IS RECORD (
+       invoiceid invoiceline.invoiceid%TYPE,
+       trackid invoiceline.trackid%TYPE
+    );
+    TYPE t_linha_tab IS TABLE OF t_linha_rec INDEX BY PLS_INTEGER;
+
+    linhas t_linha_tab;
+
+    BEFORE STATEMENT IS
+    BEGIN
+        linhas.DELETE;
+    END BEFORE STATEMENT;
+
+    AFTER EACH ROW IS
+    BEGIN
+        linhas(linhas.COUNT + 1).invoiceid := :NEW.invoiceid;
+        linhas(linhas.COUNT).trackid := :NEW.trackid;
+    END AFTER EACH ROW;
+
+    AFTER STATEMENT IS
+        id_cliente invoice.customerid%TYPE;
+        qtd INTEGER;
+    BEGIN
+        FOR i IN 1 .. linhas.COUNT LOOP
+
+            SELECT customerid INTO id_cliente
+            FROM invoice
+            WHERE invoiceid = linhas(i).invoiceid;
+
+            SELECT COUNT(*)
+            INTO qtd
+            FROM invoiceline il
+                JOIN invoice inv ON il.invoiceid = inv.invoiceid
+            WHERE inv.customerid = id_cliente
+              AND il.trackid = linhas(i).trackid;
+
+            IF qtd > 1 THEN
+                RAISE_APPLICATION_ERROR(-20105, 'ERRO! Cliente não pode comprar a mesma música mais de uma vez');
+            END IF;
+
+        END LOOP;
+    END AFTER STATEMENT;
+END;
+/
+
+
 -- 4 - A base original do Chinook possui uma coluna Total na tabela Invoice representada
 -- de forma redundante com as informações contidas nas colunas UnitPrice e
 -- Quantity na tabela InvoiceLine. Podemos identificar nesse caso uma regra

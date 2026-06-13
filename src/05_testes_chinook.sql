@@ -81,6 +81,23 @@ SET supportrepid = 4 -- id de um Sales Support Agent
 WHERE customerid = 1;
 
 
+-- Regra Semântica 3
+
+-- OBS: customer 11 na invoice 123 já comprou a track 501)
+
+-- Registra uma nova compra para o teste
+INSERT INTO invoice (invoiceid, customerid, invoicedate, total)
+VALUES (414, 11, '01-06-2026', 0);
+
+-- Cliente 11 tenta comprar a mesma track (501) novamente (deve FALHAR)
+INSERT INTO invoiceline (invoicelineid, invoiceid, trackid, unitprice, quantity)
+VALUES (2242, 414, 501, 1, 1);
+
+-- Cliente 11 tenta comprar outra track (1) pela primeira vez (deve FUNCIONAR)
+INSERT INTO invoiceline (invoicelineid, invoiceid, trackid, unitprice, quantity)
+VALUES (2243, 414, 1, 1, 1);
+
+
 -- Questão 4
 
 -- Tenta atualizar invoice com um valor de total diferente da soma dos unitprices (1.98) - (deve FALHAR)
